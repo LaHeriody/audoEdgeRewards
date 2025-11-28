@@ -8,10 +8,31 @@ import sys
 import pyautogui
 import pyperclip
 from pywinauto import Desktop
+import pickle, datetime, os, re
 
 # Fail-safe: 将鼠标移到屏幕左上角可立即中断脚本
 pyautogui.FAILSAFE = True
 
+
+today = datetime.date.today().strftime('%Y-%m-%d')
+DAY_SET_FILE = f"keywords_set_{datetime.date.today()}.pkl"
+
+def remove_previous_day_set():
+    """删除前一天的记录文件，节省空间"""
+    for fn in os.listdir('./'):
+        m = re.search(r'(\d{4}-\d{2}-\d{2})', fn)
+        if m and m.group(1) != today:
+            os.remove(os.path.join('./', fn))
+
+def load_today_set():
+    if os.path.exists(DAY_SET_FILE):
+        with open(DAY_SET_FILE, 'rb') as f:
+            return pickle.load(f)
+    return set()
+
+def save_today_set(s):
+    with open(DAY_SET_FILE, 'wb') as f:
+        pickle.dump(s, f)
 
 def rand_sleep(base, jitter):
     """短随机延迟，减少机械感"""
@@ -20,16 +41,19 @@ def rand_sleep(base, jitter):
 
 
 def main(m, initial_delay=5, wait_time=0.8, debug=False):
+    remove_previous_day_set()
     print(f"脚本将在 {initial_delay} 秒后开始。FAILSAFE 激活（将鼠标移到屏幕左上角可终止）。")
     for i in range(initial_delay, 0, -1):
         print(f"开始倒计时：{i}...", end="\r")
         time.sleep(1)
     print("\n开始执行。按 Ctrl+C 可中止（或把鼠标移到屏幕左上角）。")
+    today_set = load_today_set()
 
     try:
         from crawl import fetch_poems
         contents = fetch_poems()
-        contents = random.sample(contents, min(400, len(contents)))
+        contents = random.sample(contents, min(1000, len(contents)))
+        print(f"抓取到 {len(contents)} 首诗词，准备开始循环 {m} 次。")
         iterator = iter(contents)
         for i in range(1, m+1):
             if debug:
@@ -38,25 +62,33 @@ def main(m, initial_delay=5, wait_time=0.8, debug=False):
             target_windows = []
             target_windows.extend([w for w in windows if w.window_text().endswith("Edge")])
             target_windows.extend([w for w in windows if w.window_text().endswith("Chrome")])
-            print(f"找到 {len(target_windows)} 个标题以 'Edge' 或 'Chrome' 结尾的窗口。")
+            # print(f"找到 {len(target_windows)} 个标题以 'Edge' 或 'Chrome' 结尾的窗口。")
             target_windows = target_windows[::-1]
 
+            # 去重逻辑
+            poem = next(iterator)
+            while poem in today_set:
+                poem = next(iterator)
+            today_set.add(poem)
+
+            pyperclip.copy(poem)  # 复制内容到剪贴板
+
             for win in target_windows:
-                pyperclip.copy(next(iterator))  # 复制内容到剪贴板
                 # text = f"Hello, world!  {i}  {edge_windows.index(win)+1}/{len(edge_windows)}"
                 # pyperclip.copy(text)
                 win.set_focus()
                 pyautogui.hotkey('ctrl', 'e')
                 pyautogui.hotkey('ctrl', 'e')
-                rand_sleep(wait_time, 0.3)
+                pyautogui.hotkey('ctrl', 'e')
+                # rand_sleep(wait_time, 0.3)
                 # Ctrl+V (粘贴)
                 pyautogui.hotkey('ctrl', 'v')
-                rand_sleep(wait_time, 0.3)
+                # rand_sleep(wait_time, 0.3)
                 # Enter
                 pyautogui.press('enter')
                 rand_sleep(wait_time, 0.3)
 
-            rand_sleep(wait_time, 0.3)
+            # rand_sleep(wait_time, 0.3)
         print("所有循环完成。")
     except KeyboardInterrupt:
         print("\n用户中断 (KeyboardInterrupt)。脚本终止。")
@@ -64,12 +96,14 @@ def main(m, initial_delay=5, wait_time=0.8, debug=False):
         print("\nFailSafe 触发：鼠标移到左上角，已终止。")
     except Exception as e:
         print(f"\n发生异常: {e}")
-        raise
+    finally:
+        save_today_set(today_set)
+        print(f"已保存今日已处理诗词，共 {len(today_set)} 个关键词。")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PyAutoGUI 自动按键脚本：循环 m 次")
-    parser.add_argument("--m", type=int, default=40, help="循环次数 (默认 40)")
-    parser.add_argument("--delay", type=int, default=5, help="开始前的初始倒计时（秒））（默认 5）")
+    parser.add_argument("--m", type=int, default=40, help="循环次数 (默认 35)")
+    parser.add_argument("--delay", type=int, default=3, help="开始前的初始倒计时（秒））（默认 3）")
     parser.add_argument("--wait", type=int, default=1, help="每次循环之间的等待时间（秒））（默认 1）")
     parser.add_argument("--debug", action="store_true", help="打印更多调试信息")
     args = parser.parse_args()

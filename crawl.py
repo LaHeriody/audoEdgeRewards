@@ -4,13 +4,9 @@ import re
 
 def fetch_poems():
     # 目标URL
-    url1 = 'https://www.gushiwen.cn/default_1.aspx'
-    url2 = 'https://www.gushiwen.cn/default_2.aspx'
-    url3 = 'https://www.gushiwen.cn/default_3.aspx'
-    url4 = 'https://www.gushiwen.cn/default_4.aspx'
+    urls = [f'https://www.gushiwen.cn/default_{i}.aspx' for i in range(10)]
     poems = []
 
-    urls = [url1, url2, url3, url4]
     for url in urls:
         # 发送GET请求
         response = requests.get(url)
@@ -66,7 +62,7 @@ def fetch_poems():
 
     contents = []
     for poem in poems:
-        contents.extend(re.split("\n|，|。|！", poem["content"]))
+        contents.extend(re.split("\n|，|。|！|：|？|；", poem["content"]))
     contents = [line.strip() for line in contents if line.strip()]
     
     return contents
