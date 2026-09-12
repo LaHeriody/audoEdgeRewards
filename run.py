@@ -48,24 +48,32 @@ def main(m, initial_delay=5, wait_time=0.8, epoch_time=8, debug=False):
         time.sleep(1)
     print("\n开始执行。按 Ctrl+C 可中止（或把鼠标移到屏幕左上角）。")
     today_set = load_today_set()
+    total_start = None  # 总循环开始时间
+    completed = 0       # 已完成的循环次数
     if debug:
         print(f"今日已抓取诗词集合：{len(today_set)} 个。")
     try:
+        windows = Desktop(backend="uia").windows()  # 获取所有窗口
+        target_windows = []
+        target_windows.extend([w for w in windows if w.window_text().endswith("Edge")])
+        # target_windows.extend([w for w in windows if w.window_text().endswith("Chrome")])
+        # print(f"找到 {len(target_windows)} 个标题以 'Edge' 或 'Chrome' 结尾的窗口。")
+        # 排除窗口标题中包含特定内容的窗口
+        target_windows = [w for w in target_windows if "长沙理工大学" not in w.window_text()]
+        target_windows = target_windows[::-1]
+        # for win in target_windows:
+        #     print(f"窗口标题: {win.window_text()}，句柄: {win.handle}")
+
         from crawl import fetch_poems
         contents = fetch_poems()
         contents = random.sample(contents, min(1000, len(contents)))
         print(f"抓取到 {len(contents)} 首诗词，准备开始循环 {m} 次。")
         iterator = iter(contents)
+        total_start = time.time()  # 开始统计总循环耗时
         for i in range(1, m+1):
             if debug:
                 print(f"[{i}/{m}] 激活所有 Edge 窗口并执行 Ctrl+E / Ctrl+V / Enter")
-            windows = Desktop(backend="uia").windows()  # 获取所有窗口
-            target_windows = []
-            target_windows.extend([w for w in windows if w.window_text().endswith("Edge")])
-            target_windows.extend([w for w in windows if w.window_text().endswith("Chrome")])
-            # print(f"找到 {len(target_windows)} 个标题以 'Edge' 或 'Chrome' 结尾的窗口。")
-            target_windows = target_windows[::-1]
-
+            
             # 去重逻辑
             poem = next(iterator)
             while poem in today_set:
@@ -91,6 +99,10 @@ def main(m, initial_delay=5, wait_time=0.8, epoch_time=8, debug=False):
             elapse = time.time() - start
             rand_sleep(max(0, (epoch_time - elapse)), 0)
             # rand_sleep(wait_time, 0.3)
+            completed += 1
+            if debug:
+                done_elapsed = time.time() - total_start
+                print(f"[{i}/{m}] 本轮操作耗时 {elapse:.2f} 秒，累计 {done_elapsed:.1f} 秒，平均每次 {done_elapsed/completed:.2f} 秒")
         print("所有循环完成。")
     except KeyboardInterrupt:
         print("\n用户中断 (KeyboardInterrupt)。脚本终止。")
@@ -101,6 +113,10 @@ def main(m, initial_delay=5, wait_time=0.8, epoch_time=8, debug=False):
     finally:
         save_today_set(today_set)
         print(f"已保存今日已处理诗词，共 {len(today_set)} 个关键词。")
+        if total_start is not None:
+            total_elapsed = time.time() - total_start
+            avg_str = f"，平均每次 {total_elapsed/completed:.2f} 秒" if completed else ""
+            print(f"总循环耗时：{total_elapsed:.1f} 秒（约 {total_elapsed/60:.1f} 分钟），完成 {completed}/{m} 次循环{avg_str}。")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PyAutoGUI 自动按键脚本：循环 m 次")
