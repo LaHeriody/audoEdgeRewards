@@ -17,12 +17,15 @@ pyautogui.FAILSAFE = True
 today = datetime.date.today().strftime('%Y-%m-%d')
 DAY_SET_FILE = f"keywords_set_{datetime.date.today()}.pkl"
 
+
 def remove_previous_day_set():
     """删除前一天的记录文件，节省空间"""
     for fn in os.listdir('./'):
-        m = re.search(r'(\d{4}-\d{2}-\d{2})', fn)
+        # 只清理关键词处理记录，避免误删爬虫的历史成功缓存或其他带日期的文件。
+        m = re.fullmatch(r'keywords_set_(\d{4}-\d{2}-\d{2})\.pkl', fn)
         if m and m.group(1) != today:
             os.remove(os.path.join('./', fn))
+
 
 def load_today_set():
     if os.path.exists(DAY_SET_FILE):
